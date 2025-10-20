@@ -1,36 +1,11 @@
-from pathlib import Path
-
-def _write_theme(base: str):
-    Path(".streamlit").mkdir(exist_ok=True)
-    if base == "dark":
-        theme = """[theme]
-base="dark"
-primaryColor="#22d3ee"
-backgroundColor="#0b0f17"
-secondaryBackgroundColor="#111827"
-textColor="#e5e7eb"
-font="sans serif"
-"""
-    else:
-        theme = """[theme]
-base="light"
-primaryColor="#0ea5e9"
-backgroundColor="#ffffff"
-secondaryBackgroundColor="#f6f9fc"
-textColor="#0f172a"
-font="sans serif"
-"""
-    Path(".streamlit/config.toml").write_text(theme, encoding="utf-8")
-    st.rerun()
-
 import streamlit as st
 import random, csv, os, re
 from io import StringIO
 
+# Page config must be the first Streamlit call
 st.set_page_config(page_title="German A1 Vocab Trainer", page_icon="🇩🇪")
-st.title("🇩🇪 German A1 Vocab Trainer")
-import os
 
+st.title("🇩🇪 German A1 Vocab Trainer")
 
 # ---------- Deck I/O ----------
 DEFAULT_CARDS = [
@@ -200,11 +175,11 @@ with left:
     if st.button("Start / Restart"):
         restart(shuffle=True)
 with right:
-    st.write(f"Progress: {st.session_state.i} / {min(len(CARDS), session_size)}  |  ✅ {st.session_state.correct}")
+    total = min(len(CARDS), st.session_state.get("session_size_val", 30))
+    st.write(f"Progress: {st.session_state.i} / {total}  |  ✅ {st.session_state.correct}")
 
 # ---------- Helpers ----------
 def make_mc_options(cards, idx, en_to_de=True, n_opts=4):
-    """Return a list of options including the correct answer + distractors."""
     card = cards[idx]
     if en_to_de:
         correct = card["de"]
@@ -212,9 +187,7 @@ def make_mc_options(cards, idx, en_to_de=True, n_opts=4):
     else:
         correct = card["en"]
         pool = [c["en"] for c in cards if c is not card]
-
-    # sample up to n_opts-1 unique distractors
-    pool = list(dict.fromkeys(pool))  # dedupe while keeping order
+    pool = list(dict.fromkeys(pool))
     if len(pool) >= n_opts - 1:
         distractors = random.sample(pool, n_opts - 1)
     else:
@@ -227,8 +200,11 @@ def make_mc_options(cards, idx, en_to_de=True, n_opts=4):
     random.shuffle(options)
     return options, correct
 
-# ---------- Main loop ----------
+# Keep a copy of session_size so header can read it during reruns
+st.session_state.session_size_val = session_size
 finished = (st.session_state.i >= min(len(CARDS), session_size))
+
+# ---------- Main loop ----------
 if finished:
     st.success(f"Done! Score: {st.session_state.correct} / {min(len(CARDS), session_size)}")
 else:
@@ -256,16 +232,13 @@ else:
                 st.session_state.show = False
 
     elif practice_type == "Typing":
-        # Typing is EN → DE
         prompt, answer = card["en"], card["de"]
         st.subheader(prompt)
-
         st.text_input("Type the German word/phrase:", key="answer_input")
         cols = st.columns(3)
         with cols[0]:
             if st.button("Check"):
                 ok, accepted = check_answer(st.session_state.answer_input, answer)
-                # strict: exact (normalized) match only
                 if strict:
                     ok = normalize(st.session_state.answer_input) == normalize(acceptable_variants(answer)[0])
                     accepted = acceptable_variants(answer)[0]
@@ -285,7 +258,6 @@ else:
                 st.session_state.i += 1
                 st.session_state.answer_input = ""
                 st.session_state.show = False
-
         if st.session_state.show:
             st.write(f"**Answer:** {answer}")
 
@@ -295,7 +267,6 @@ else:
         answer = card["de"] if en_to_de else card["en"]
         st.subheader(prompt)
 
-        # Generate options once per card
         if st.session_state.mc_i != st.session_state.i:
             opts, correct = make_mc_options(CARDS, idx, en_to_de=en_to_de, n_opts=4)
             st.session_state.mc_options = opts
@@ -316,7 +287,7 @@ else:
                     else:
                         st.error(f"✗ Not quite. Correct: {st.session_state.mc_answer}")
                     st.session_state.i += 1
-                    st.session_state.mc_i = -1  # force new options next card
+                    st.session_state.mc_i = -1
         with c2:
             if st.button("Skip"):
                 st.session_state.i += 1

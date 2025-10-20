@@ -31,18 +31,6 @@ st.set_page_config(page_title="German A1 Vocab Trainer", page_icon="🇩🇪")
 st.title("🇩🇪 German A1 Vocab Trainer")
 import os
 
-# Simple password gate (set APP_PASSWORD in env / Secrets)
-if "authed" not in st.session_state:
-    st.session_state.authed = False
-
-if not st.session_state.authed:
-    pwd = st.text_input("Password", type="password")
-    if st.button("Enter"):
-        if pwd and pwd == os.getenv("APP_PASSWORD", ""):
-            st.session_state.authed = True
-        else:
-            st.error("Wrong password")
-    st.stop()
 
 # ---------- Deck I/O ----------
 DEFAULT_CARDS = [
